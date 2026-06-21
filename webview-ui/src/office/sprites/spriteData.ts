@@ -5,23 +5,27 @@ import type { Direction, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
 import bubblePermissionData from './bubble-permission.json';
 import bubbleWaitingData from './bubble-waiting.json';
+import laptopData from './laptop.json';
 
-// ── Speech Bubble Sprites ───────────────────────────────────────
+// ── Pixel Sprites (palette + grid JSON) ─────────────────────────
 
-interface BubbleSpriteJson {
+interface PixelSpriteJson {
   palette: Record<string, string>;
   pixels: string[][];
 }
 
-function resolveBubbleSprite(data: BubbleSpriteJson): SpriteData {
+function resolvePixelSprite(data: PixelSpriteJson): SpriteData {
   return data.pixels.map((row) => row.map((key) => data.palette[key] ?? key));
 }
 
 /** Permission bubble: white square with "..." in amber, and a tail pointer (11x13) */
-export const BUBBLE_PERMISSION_SPRITE: SpriteData = resolveBubbleSprite(bubblePermissionData);
+export const BUBBLE_PERMISSION_SPRITE: SpriteData = resolvePixelSprite(bubblePermissionData);
 
 /** Waiting bubble: white square with green checkmark, and a tail pointer (11x13) */
-export const BUBBLE_WAITING_SPRITE: SpriteData = resolveBubbleSprite(bubbleWaitingData);
+export const BUBBLE_WAITING_SPRITE: SpriteData = resolvePixelSprite(bubbleWaitingData);
+
+/** Laptop: auto-placed in front of active agents not seated at a computer (16x12) */
+export const LAPTOP_SPRITE: SpriteData = resolvePixelSprite(laptopData);
 
 // ════════════════════════════════════════════════════════════════
 // Loaded character sprites (from PNG assets)

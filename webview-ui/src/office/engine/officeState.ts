@@ -21,7 +21,7 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
-import { getLoadedCharacterCount } from '../sprites/spriteData.js';
+import { getLoadedCharacterCount, LAPTOP_SPRITE } from '../sprites/spriteData.js';
 import type {
   Character,
   FurnitureInstance,
@@ -609,6 +609,7 @@ export class OfficeState {
 
     if (autoOnTiles.size === 0) {
       this.furniture = layoutToFurnitureInstances(this.layout.furniture);
+      this.appendAutoLaptops();
       return;
     }
 
@@ -639,6 +640,68 @@ export class OfficeState {
     });
 
     this.furniture = layoutToFurnitureInstances(modifiedFurniture);
+    this.appendAutoLaptops();
+  }
+
+  /** Append a laptop on the surface in front of every active, seated agent who
+   *  isn't facing a computer — so working characters never type on an empty
+   *  table. Mirrors the auto-state ON detection so anyone at a real PC is skipped. */
+  private appendAutoLaptops(): void {
+    // Tiles occupied by electronics (PCs/monitors): agents facing these already
+    // have a screen and don't get a laptop.
+    const computerTiles = new Set<string>();
+    for (const item of this.layout.furniture) {
+      const entry = getCatalogEntry(item.type);
+      if (!entry || entry.category !== 'electronics') continue;
+      for (let dr = 0; dr < entry.footprintH; dr++) {
+        for (let dc = 0; dc < entry.footprintW; dc++) {
+          computerTiles.add(`${item.col + dc},${item.row + dr}`);
+        }
+      }
+    }
+
+    const laptops: FurnitureInstance[] = [];
+    for (const ch of this.characters.values()) {
+      if (!ch.isActive || !ch.seatId) continue;
+      const seat = this.seats.get(ch.seatId);
+      if (!seat) continue;
+      const dCol =
+        seat.facingDir === Direction.RIGHT ? 1 : seat.facingDir === Direction.LEFT ? -1 : 0;
+      const dRow =
+        seat.facingDir === Direction.DOWN ? 1 : seat.facingDir === Direction.UP ? -1 : 0;
+
+      // Skip if the agent already faces a computer (straight ahead or to the sides),
+      // matching the auto-on detection used for desktop PCs.
+      let facesComputer = false;
+      for (let d = 1; d <= AUTO_ON_FACING_DEPTH && !facesComputer; d++) {
+        if (computerTiles.has(`${seat.seatCol + dCol * d},${seat.seatRow + dRow * d}`)) {
+          facesComputer = true;
+        }
+      }
+      for (let d = 1; d <= AUTO_ON_SIDE_DEPTH && !facesComputer; d++) {
+        const bc = seat.seatCol + dCol * d;
+        const br = seat.seatRow + dRow * d;
+        const sides =
+          dCol !== 0 ? [`${bc},${br - 1}`, `${bc},${br + 1}`] : [`${bc - 1},${br}`, `${bc + 1},${br}`];
+        if (sides.some((k) => computerTiles.has(k))) facesComputer = true;
+      }
+      if (facesComputer) continue;
+
+      // Place the laptop on the surface directly in front of the seat. zY is derived
+      // from the target tile so it sorts in front when facing down/left/right and
+      // behind (occluded by the agent's back) when facing up.
+      const targetCol = seat.seatCol + dCol;
+      const targetRow = seat.seatRow + dRow;
+      const spriteH = LAPTOP_SPRITE.length;
+      const spriteW = LAPTOP_SPRITE[0].length;
+      laptops.push({
+        sprite: LAPTOP_SPRITE,
+        x: targetCol * TILE_SIZE + (TILE_SIZE - spriteW) / 2,
+        y: targetRow * TILE_SIZE + (TILE_SIZE - spriteH),
+        zY: targetRow * TILE_SIZE + spriteH,
+      });
+    }
+    if (laptops.length > 0) this.furniture = [...this.furniture, ...laptops];
   }
 
   setAgentTool(id: number, tool: string | null): void {

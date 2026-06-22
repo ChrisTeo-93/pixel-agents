@@ -643,9 +643,10 @@ export class OfficeState {
     this.appendAutoLaptops();
   }
 
-  /** Append a laptop on the surface in front of every active, seated agent who
-   *  isn't facing a computer — so working characters never type on an empty
-   *  table. Mirrors the auto-state ON detection so anyone at a real PC is skipped. */
+  /** Append a laptop on the surface in front of every agent sitting at a seat
+   *  that doesn't face a computer — so seated characters always have something to
+   *  work on (e.g. lounge sofas, meeting tables) instead of an empty surface.
+   *  Mirrors the auto-state ON detection so anyone at a real PC is skipped. */
   private appendAutoLaptops(): void {
     // Tiles occupied by electronics (PCs/monitors): agents facing these already
     // have a screen and don't get a laptop.
@@ -662,9 +663,14 @@ export class OfficeState {
 
     const laptops: FurnitureInstance[] = [];
     for (const ch of this.characters.values()) {
-      if (!ch.isActive || !ch.seatId) continue;
+      if (!ch.seatId || ch.matrixEffect) continue;
       const seat = this.seats.get(ch.seatId);
       if (!seat) continue;
+      // Only when the agent is actually sitting at their seat (not mid-wander),
+      // so the laptop never floats at an empty chair.
+      if (ch.tileCol !== seat.seatCol || ch.tileRow !== seat.seatRow || ch.path.length > 0) {
+        continue;
+      }
       const dCol =
         seat.facingDir === Direction.RIGHT ? 1 : seat.facingDir === Direction.LEFT ? -1 : 0;
       const dRow =

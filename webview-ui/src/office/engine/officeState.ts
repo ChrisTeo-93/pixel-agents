@@ -21,7 +21,12 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
-import { getLoadedCharacterCount, LAPTOP_SPRITE } from '../sprites/spriteData.js';
+import {
+  getLoadedCharacterCount,
+  LAPTOP_BACK_SPRITE,
+  LAPTOP_FRONT_SPRITE,
+  LAPTOP_SIDE_SPRITE,
+} from '../sprites/spriteData.js';
 import type {
   Character,
   FurnitureInstance,
@@ -651,12 +656,27 @@ export class OfficeState {
     // Tiles occupied by electronics (PCs/monitors): agents facing these already
     // have a screen and don't get a laptop.
     const computerTiles = new Set<string>();
+    // Desk/table surface depth per tile, so the laptop sits ON the surface and
+    // sorts in front of it instead of being hidden under the desk sprite.
+    const deskZByTile = new Map<string, number>();
     for (const item of this.layout.furniture) {
       const entry = getCatalogEntry(item.type);
-      if (!entry || entry.category !== 'electronics') continue;
-      for (let dr = 0; dr < entry.footprintH; dr++) {
-        for (let dc = 0; dc < entry.footprintW; dc++) {
-          computerTiles.add(`${item.col + dc},${item.row + dr}`);
+      if (!entry) continue;
+      if (entry.category === 'electronics') {
+        for (let dr = 0; dr < entry.footprintH; dr++) {
+          for (let dc = 0; dc < entry.footprintW; dc++) {
+            computerTiles.add(`${item.col + dc},${item.row + dr}`);
+          }
+        }
+      }
+      if (entry.isDesk) {
+        const deskZY = item.row * TILE_SIZE + entry.sprite.length;
+        for (let dr = 0; dr < entry.footprintH; dr++) {
+          for (let dc = 0; dc < entry.footprintW; dc++) {
+            const key = `${item.col + dc},${item.row + dr}`;
+            const prev = deskZByTile.get(key);
+            if (prev === undefined || deskZY > prev) deskZByTile.set(key, deskZY);
+          }
         }
       }
     }
@@ -693,19 +713,33 @@ export class OfficeState {
       }
       if (facesComputer) continue;
 
-      // Place the laptop on the surface directly in front of the seat. zY is derived
-      // from the target tile so it sorts in front when facing down/left/right and
-      // behind (occluded by the agent's back) when facing up.
+      // Orient the laptop so the screen faces the agent: they sit opposite the
+      // direction they face, so the screen points back toward them.
+      let sprite = LAPTOP_FRONT_SPRITE; // facing UP: screen toward viewer
+      let mirrored = false;
+      if (seat.facingDir === Direction.DOWN) {
+        sprite = LAPTOP_BACK_SPRITE; // agent faces viewer: screen points away
+      } else if (seat.facingDir === Direction.LEFT) {
+        sprite = LAPTOP_SIDE_SPRITE; // agent to the right: screen on the right
+      } else if (seat.facingDir === Direction.RIGHT) {
+        sprite = LAPTOP_SIDE_SPRITE;
+        mirrored = true; // agent to the left: screen on the left
+      }
+
       const targetCol = seat.seatCol + dCol;
       const targetRow = seat.seatRow + dRow;
-      const spriteH = LAPTOP_SPRITE.length;
-      const spriteW = LAPTOP_SPRITE[0].length;
-      laptops.push({
-        sprite: LAPTOP_SPRITE,
-        x: targetCol * TILE_SIZE + (TILE_SIZE - spriteW) / 2,
-        y: targetRow * TILE_SIZE + (TILE_SIZE - spriteH),
-        zY: targetRow * TILE_SIZE + spriteH,
-      });
+      const spriteH = sprite.length;
+      const spriteW = sprite[0].length;
+      const x = targetCol * TILE_SIZE + (TILE_SIZE - spriteW) / 2;
+      const deskZ = deskZByTile.get(`${targetCol},${targetRow}`);
+      // On a desk/table: sit centered on the surface and sort just in front of it.
+      // On open floor: rest bottom-aligned in the tile with a normal depth.
+      const y =
+        deskZ !== undefined
+          ? targetRow * TILE_SIZE + Math.floor((TILE_SIZE - spriteH) / 2)
+          : targetRow * TILE_SIZE + (TILE_SIZE - spriteH);
+      const zY = deskZ !== undefined ? deskZ + 0.5 : targetRow * TILE_SIZE + spriteH;
+      laptops.push({ sprite, x, y, zY, mirrored });
     }
     if (laptops.length > 0) this.furniture = [...this.furniture, ...laptops];
   }

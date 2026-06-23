@@ -6,6 +6,8 @@ import { Direction as Dir } from '../types.js';
 import bubblePermissionData from './bubble-permission.json';
 import bubbleWaitingData from './bubble-waiting.json';
 import laptopData from './laptop.json';
+import laptopBackData from './laptop-back.json';
+import laptopSideData from './laptop-side.json';
 
 // ── Pixel Sprites (palette + grid JSON) ─────────────────────────
 
@@ -24,8 +26,11 @@ export const BUBBLE_PERMISSION_SPRITE: SpriteData = resolvePixelSprite(bubblePer
 /** Waiting bubble: white square with green checkmark, and a tail pointer (11x13) */
 export const BUBBLE_WAITING_SPRITE: SpriteData = resolvePixelSprite(bubbleWaitingData);
 
-/** Laptop: auto-placed in front of active agents not seated at a computer (16x12) */
-export const LAPTOP_SPRITE: SpriteData = resolvePixelSprite(laptopData);
+/** Laptop sprites (auto-placed in front of seated agents not at a computer, 16x12).
+ *  FRONT = screen toward viewer, BACK = lid toward viewer, SIDE = profile (screen right). */
+export const LAPTOP_FRONT_SPRITE: SpriteData = resolvePixelSprite(laptopData);
+export const LAPTOP_BACK_SPRITE: SpriteData = resolvePixelSprite(laptopBackData);
+export const LAPTOP_SIDE_SPRITE: SpriteData = resolvePixelSprite(laptopSideData);
 
 // ════════════════════════════════════════════════════════════════
 // Loaded character sprites (from PNG assets)
